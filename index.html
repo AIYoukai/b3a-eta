@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>B3A · 富泰邨 → 深圳灣口岸 · 實時到站</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23F5EA00'/%3E%3Ctext x='32' y='44' font-family='Helvetica,Arial' font-size='28' font-weight='bold' text-anchor='middle' fill='%230B0B0B'%3EB3A%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --lemon:#F5EA00;
+    --ink:#0B0B0B;
+    --paper:#FFFEF4;
+    --line:rgba(11,11,11,.16);
+    --line-strong:rgba(11,11,11,.9);
+    --muted:rgba(11,11,11,.55);
+    --inv-line:rgba(255,254,244,.22);
+    --hb:15s;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--lemon);
+    color:var(--ink);
+    font-family:"Helvetica Neue","Inter",Helvetica,Arial,"PingFang HK","Hiragino Sans GB","Noto Sans TC","Microsoft JhengHei","Source Han Sans TC",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:repeating-linear-gradient(90deg, rgba(0,0,0,.05) 0 1px, transparent 1px 8.3333%);
+  }
+  .tnum{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
+  .micro{
+    font-size:10px; font-weight:700; letter-spacing:.2em;
+    text-transform:uppercase; line-height:1.2;
+  }
+  .micro.inv{color:rgba(255,254,244,.55)}
+  .frame{
+    position:relative; z-index:1;
+    max-width:1480px; margin:0 auto;
+    padding:clamp(14px,2vw,30px);
+    min-height:100vh;
+    display:flex; flex-direction:column;
+  }
+
+  /* ---------- masthead ---------- */
+  .mast{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:24px; padding-bottom:14px;
+    border-bottom:2px solid var(--ink);
+  }
+  .mast-l{display:flex; align-items:flex-end; gap:clamp(12px,2vw,28px); min-width:0}
+  .route{
+    font-size:clamp(42px,5.8vw,74px); font-weight:800;
+    letter-spacing:-.055em; line-height:.78;
+  }
+  .mast-meta{padding-bottom:3px; min-width:0}
+  .mast-sub{
+    font-size:clamp(11px,1.15vw,15px); font-weight:600;
+    margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .mast-r{text-align:right; flex:none}
+  .clock{
+    font-size:clamp(26px,3.2vw,44px); font-weight:700;
+    letter-spacing:-.03em; line-height:1;
+  }
+  .mast-date{margin-top:6px}
+  .status{
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:10px; font-weight:700; letter-spacing:.16em;
+    text-transform:uppercase;
+    border:1px solid var(--ink); border-radius:999px;
+    padding:4px 10px; margin-bottom:9px;
+    cursor:pointer; background:transparent; color:inherit;
+    font-family:inherit;
+    transition:background .2s,color .2s;
+  }
+  .status:hover{background:rgba(11,11,11,.08)}
+  .status .dot{width:6px; height:6px; margin:0}
+  .status.off{background:var(--ink); color:var(--lemon); border-color:var(--ink)}
+  .status.stale{opacity:.55}
+  .status.live .dot{animation:pulse var(--hb) ease-out infinite}
+  .dot{
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:currentColor; flex:none;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:.25; transform:scale(.8)}
+    5%{opacity:1; transform:scale(1.7)}
+    13%{opacity:.25; transform:scale(.8)}
+  }
+
+  /* ---------- hero ---------- */
+  .hero{
+    display:grid;
+    grid-template-columns:minmax(0,2fr) minmax(230px,.85fr);
+    gap:clamp(18px,3vw,48px);
+    padding:clamp(18px,3vw,34px) 0;
+    border-bottom:2px solid var(--ink);
+  }
+  h1{
+    margin:10px 0 0; padding-bottom:.1em;
+    font-size:clamp(54px,8.4vw,118px);
+    font-weight:800; letter-spacing:-.055em; line-height:.9;
+  }
+  .stop-sub{
+    margin-top:8px;
+    font-size:clamp(14px,1.5vw,19px); font-weight:600;
+    letter-spacing:.01em;
+  }
+  .stop-sub .sep{margin:0 10px; opacity:.45}
+  .dest{
+    display:flex; align-items:baseline; flex-wrap:wrap;
+    gap:clamp(10px,1.4vw,18px);
+    margin-top:clamp(14px,2vw,24px); padding-top:14px;
+    border-top:1px solid var(--line-strong);
+  }
+  .dest-arrow{font-size:clamp(24px,3vw,38px); font-weight:700; line-height:1}
+  .dest-cn{font-size:clamp(22px,3.2vw,40px); font-weight:800; letter-spacing:-.02em}
+  .dest-en{font-size:10px; letter-spacing:.18em; font-weight:700; opacity:.6}
+  .meta{margin:0; border-top:1px solid var(--line-strong)}
+  .meta > div{
+    display:flex; justify-content:space-between; align-items:baseline;
+    gap:12px; padding:9px 0; border-bottom:1px solid var(--line);
+  }
+  .meta dt{
+    font-size:9.5px; letter-spacing:.16em; font-weight:700;
+    opacity:.55; text-transform:uppercase; white-space:nowrap;
+  }
+  .meta dd{
+    margin:0; font-size:clamp(11.5px,1.1vw,14px);
+    font-weight:700; text-align:right;
+  }
+
+  /* ---------- board ---------- */
+  .board{
+    margin-top:clamp(16px,2.4vw,28px);
+    background:var(--ink); color:var(--paper);
+    display:grid;
+    grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);
+  }
+  .next{
+    padding:clamp(18px,2.6vw,34px);
+    border-right:1px solid var(--inv-line);
+    display:flex; flex-direction:column; justify-content:space-between; gap:12px;
+  }
+  .next-head{display:flex; justify-content:space-between; align-items:center; gap:12px}
+  .badge{
+    font-size:10px; letter-spacing:.16em; font-weight:700;
+    border:1px solid var(--lemon); color:var(--lemon);
+    padding:3px 8px; white-space:nowrap;
+  }
+  .big-wrap{
+    display:flex; align-items:flex-end;
+    gap:clamp(8px,1vw,18px);
+    min-height:clamp(104px,14.5vw,206px);
+  }
+  .big{
+    font-size:clamp(96px,17vw,226px);
+    font-weight:800; letter-spacing:-.07em; line-height:.76;
+    color:var(--lemon);
+  }
+  .big.soon{font-size:clamp(50px,7.6vw,104px); letter-spacing:-.03em; line-height:.9}
+  .unit{
+    font-size:clamp(18px,2.2vw,32px); font-weight:700;
+    color:var(--lemon); padding-bottom:.32em; letter-spacing:.06em;
+  }
+  .next-foot{
+    display:flex; align-items:baseline; flex-wrap:wrap; gap:9px;
+    font-size:clamp(11px,1.2vw,14px); font-weight:600;
+  }
+  .next-foot .tnum{font-size:clamp(16px,1.8vw,22px); color:var(--lemon)}
+  .next-foot .sep{opacity:.4}
+
+  .list{padding:clamp(18px,2.6vw,34px); display:flex; flex-direction:column}
+  .list-head{
+    display:grid; grid-template-columns:52px 1fr auto; gap:12px;
+    padding-bottom:10px; border-bottom:1px solid var(--inv-line);
+  }
+  .rows{list-style:none; margin:0; padding:0; display:flex; flex-direction:column}
+  .row{
+    display:grid; grid-template-columns:52px 1fr auto; gap:12px;
+    align-items:baseline;
+    padding:clamp(9px,1.3vw,14px) 0;
+    border-bottom:1px solid rgba(255,254,244,.14);
+    transition:opacity .2s;
+  }
+  .row .idx{color:rgba(255,254,244,.45)}
+  .row .t{font-size:clamp(17px,1.9vw,24px); font-weight:600; letter-spacing:.02em}
+  .row .rem{
+    font-size:clamp(20px,2.4vw,30px); font-weight:800;
+    color:var(--lemon); text-align:right; white-space:nowrap;
+  }
+  .row .rem small{font-size:.48em; font-weight:700; margin-left:3px; letter-spacing:.04em}
+  .row .rem.pass{color:rgba(255,254,244,.4)}
+  .row.dim{opacity:.42}
+  .row.is-next .t{color:#fff}
+  .row.is-next .idx{color:var(--lemon)}
+  .empty{
+    padding:26px 0 6px;
+    font-size:clamp(18px,2vw,26px); font-weight:800; line-height:1.2;
+  }
+  .empty span{
+    display:block; margin-top:8px;
+    font-size:11px; font-weight:600; letter-spacing:.08em; opacity:.55;
+  }
+
+  /* ---------- footer ---------- */
+  footer{
+    margin-top:auto;
+    padding-top:clamp(14px,2vw,22px);
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:clamp(12px,2vw,28px);
+    border-top:2px solid var(--ink);
+  }
+  .fcell{border-left:1px solid var(--line-strong); padding-left:clamp(8px,1vw,14px); min-width:0}
+  .fcell:first-child{border-left:0; padding-left:0}
+  .fval{
+    margin-top:8px; font-size:clamp(16px,1.7vw,22px);
+    font-weight:800; letter-spacing:-.01em;
+    display:flex; align-items:center; gap:8px;
+  }
+  .fval.small{font-size:clamp(12px,1.2vw,15px); font-weight:700}
+  .fsub{margin-top:4px; font-size:10.5px; letter-spacing:.05em; opacity:.55; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .note{
+    margin:clamp(10px,1.6vw,16px) 0 0;
+    font-size:10.5px; line-height:1.65; opacity:.55; max-width:72ch;
+  }
+
+  @media (max-width:880px){
+    .hero{grid-template-columns:1fr}
+    .meta{max-width:520px}
+    .board{grid-template-columns:1fr}
+    .next{border-right:0; border-bottom:1px solid var(--inv-line)}
+    footer{grid-template-columns:1fr 1fr}
+    .fcell:nth-child(3){border-left:0; padding-left:0}
+  }
+  @media (max-width:560px){
+    .mast{align-items:flex-end; gap:12px}
+    .mast-l{gap:10px}
+    .mast-meta .micro{font-size:8.5px; letter-spacing:.1em; white-space:nowrap}
+    .mast-sub{display:none}
+    .route{font-size:40px}
+    .clock{font-size:24px}
+    .status{font-size:9px; letter-spacing:.12em; margin-bottom:6px}
+    .big-wrap{min-height:96px}
+    .fsub{white-space:normal}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important; transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <header class="mast">
+    <div class="mast-l">
+      <div class="route">B3A</div>
+      <div class="mast-meta">
+        <div class="micro">城巴 CITYBUS · 過境路線</div>
+        <div class="mast-sub">青山公路–嶺南段 → 深圳灣口岸</div>
+      </div>
+    </div>
+    <div class="mast-r">
+      <button class="status" id="status" type="button" title="點擊立即更新">
+        <span class="dot"></span><span id="statusText">連線中</span>
+      </button>
+      <div class="clock tnum" id="clock">--:--:--</div>
+      <div class="micro mast-date" id="date">HONG KONG · UTC+8</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-l">
+        <div class="micro">STOP 003261 · 站序 14 / 15 · 往深圳灣</div>
+        <h1>富泰邨</h1>
+        <div class="stop-sub">青山公路 · 嶺南段<span class="sep">/</span>嶺南大學一帶</div>
+        <div class="dest">
+          <span class="dest-arrow">→</span>
+          <span class="dest-cn">深圳灣口岸</span>
+          <span class="dest-en">SHENZHEN BAY PORT</span>
+        </div>
+      </div>
+      <div class="hero-r">
+        <dl class="meta">
+          <div><dt>路線 ROUTE</dt><dd>B3A</dd></div>
+          <div><dt>方向 DIRECTION</dt><dd>往深圳灣口岸</dd></div>
+          <div><dt>營辦商 OPERATOR</dt><dd>城巴 Citybus</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="board" aria-label="實時到站">
+      <div class="next">
+        <div class="next-head">
+          <span class="micro inv">下一班 · NEXT</span>
+          <span class="badge" id="nextBadge">—</span>
+        </div>
+        <div class="big-wrap">
+          <div class="big tnum" id="bigNum">--</div>
+          <div class="unit" id="bigUnit">分</div>
+        </div>
+        <div class="next-foot">
+          <span class="tnum" id="nextTime">--:--</span>
+          <span class="sep">·</span>
+          <span id="nextDetail">等待數據</span>
+        </div>
+      </div>
+
+      <div class="list">
+        <div class="list-head micro inv">
+          <span>班次</span><span>預計到站</span><span>尚餘</span>
+        </div>
+        <ol class="rows" id="rows"></ol>
+        <div class="empty" id="empty" hidden>暫無實時班次<span>可能已收車，或訊號暫時中斷</span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="fcell">
+      <div class="micro">校時 CLOCK SYNC</div>
+      <div class="fval tnum" id="syncVal">—</div>
+      <div class="fsub" id="syncSub">等待同步</div>
+    </div>
+    <div class="fcell">
+      <div class="micro">更新 LAST FETCH</div>
+      <div class="fval tnum" id="fetchVal">--:--:--</div>
+      <div class="fsub" id="fetchSub">—</div>
+    </div>
+    <div class="fcell">
+      <div class="micro">資料 SOURCE</div>
+      <div class="fval small">運輸署 · 城巴</div>
+      <div class="fsub">rt.data.gov.hk</div>
+    </div>
+  </footer>
+
+  <p class="note">實時到站資料由香港運輸署「資料一線通」城巴 API 提供，只供參考。班次或因交通情況調整，請以現場及城巴公佈為準。</p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var API = 'https://rt.data.gov.hk/v2/transport/citybus/eta/ctb/003261/B3A';
+  var TIME_API = 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Hong_Kong';
+  // 第二個香港官方時間參考：九巴 ETA 回應的 generated_timestamp
+  var KMB_CLOCK_API = 'https://data.etabus.gov.hk/v1/transport/kmb/eta/AA5DA45828958EAE/67M/1';
+  var HB = 15000;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {
+    status: $('status'), statusText: $('statusText'),
+    clock: $('clock'), date: $('date'),
+    bigNum: $('bigNum'), bigUnit: $('bigUnit'),
+    nextTime: $('nextTime'), nextDetail: $('nextDetail'), nextBadge: $('nextBadge'),
+    rows: $('rows'), empty: $('empty'),
+    syncVal: $('syncVal'), syncSub: $('syncSub'),
+    fetchVal: $('fetchVal'), fetchSub: $('fetchSub')
+  };
+
+  var hkTime = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Hong_Kong', hour: '2-digit', minute: '2-digit',
+    second: '2-digit', hourCycle: 'h23'
+  });
+  var hkHM = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Hong_Kong', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  });
+  var hkDate = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit',
+    day: '2-digit', weekday: 'short'
+  });
+
+  var state = {
+    offset: 0,          // serverEpoch − localEpoch
+    synced: false,
+    syncSource: '—',
+    syncDetail: '',
+    syncAt: 0,
+    arrivals: [],
+    generatedAt: 0,
+    lastFetch: 0,
+    ok: false,
+    error: '',
+    beats: 0,
+    nextBeatAt: 0,
+    busy: false
+  };
+
+  var rowRefs = [];
+  var lastClock = '';
+  var lastDate = '';
+
+  function now() { return Date.now() + state.offset; }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function fmtDate(ms) {
+    var parts = hkDate.formatToParts(ms);
+    var p = {};
+    for (var i = 0; i < parts.length; i++) p[parts[i].type] = parts[i].value;
+    return p.year + '.' + p.month + '.' + p.day + ' ' + String(p.weekday).toUpperCase();
+  }
+
+  function fmtOffset(ms) {
+    var sign = ms >= 0 ? '+' : '−';
+    return sign + (Math.abs(ms) / 1000).toFixed(1) + ' s';
+  }
+
+  function applyOffset(est, label, detail) {
+    if (!isFinite(est) || Math.abs(est) > 86400000) return;
+    if (!state.synced || Math.abs(est - state.offset) > 3000) {
+      state.offset = est;
+    } else {
+      state.offset += (est - state.offset) * 0.35;
+    }
+    state.synced = true;
+    state.syncSource = label;
+    state.syncDetail = detail || '';
+    state.syncAt = Date.now();
+  }
+
+  // 單個時間源的偏差：serverEpoch + 單程延遲 − 本地收到回應的時間
+  function timeCandidate(serverMs, t0, t1, src, weight) {
+    return {
+      offset: serverMs + (t1 - t0) / 2 - t1,
+      src: src,
+      weight: weight || 1
+    };
+  }
+
+  // 時間源一：timeapi.io（毫秒級）
+  function fetchTimeApi() {
+    var t0 = Date.now();
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, 5000);
+
+    return fetch(TIME_API + '&_=' + t0, { cache: 'no-store', signal: ctl.signal })
+      .then(function (r) {
+        if (!r.ok) throw new Error('timeapi ' + r.status);
+        return r.json();
+      })
+      .then(function (j) {
+        var t1 = Date.now();
+        var server = Date.UTC(j.year, j.month - 1, j.day, j.hour, j.minute, j.seconds, j.milliSeconds || 0) - 8 * 3600 * 1000;
+        return timeCandidate(server, t0, t1, 'timeapi.io', 3);
+      })
+      .finally(function () { clearTimeout(timer); });
+  }
+
+  // 時間源二：九巴 ETA 的 generated_timestamp（秒級，取該秒中點）
+  function fetchKmbClock() {
+    var t0 = Date.now();
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, 5000);
+
+    return fetch(KMB_CLOCK_API + '?_=' + t0, { cache: 'no-store', signal: ctl.signal })
+      .then(function (r) {
+        if (!r.ok) throw new Error('kmb ' + r.status);
+        return r.json();
+      })
+      .then(function (j) {
+        var ts = Date.parse(j.generated_timestamp);
+        if (!isFinite(ts)) throw new Error('kmb timestamp');
+        return timeCandidate(ts + 500, t0, Date.now(), 'KMB', 1);
+      })
+      .finally(function () { clearTimeout(timer); });
+  }
+
+  // 時間源三：城巴 ETA 回應的 generated_timestamp（秒級）
+  function ctbClock(json, t0, t1) {
+    var ts = Date.parse(json.generated_timestamp);
+    if (!isFinite(ts)) return null;
+    return timeCandidate(ts + 500, t0, t1, 'CTB', 1);
+  }
+
+  // 多源合併：剔除離群值後，按精度加權平均
+  function combineClocks(list) {
+    if (!list.length) return null;
+    var sorted = list.slice().sort(function (a, b) { return a.offset - b.offset; });
+    var median = sorted[Math.floor(sorted.length / 2)].offset;
+    var kept = list.filter(function (c) { return Math.abs(c.offset - median) <= 1500; });
+    var wsum = 0, osum = 0;
+    kept.forEach(function (c) {
+      var w = c.weight || 1;
+      wsum += w;
+      osum += c.offset * w;
+    });
+    var detail = kept.map(function (c) {
+      return c.src + ' ' + (c.offset / 1000).toFixed(2) + 's';
+    }).join(' · ');
+    return {
+      offset: osum / wsum,
+      count: kept.length,
+      label: kept.length > 1 ? kept.length + ' 源平均' : kept[0].src,
+      detail: detail
+    };
+  }
+
+  function fetchEta() {
+    var t0 = Date.now();
+    return fetch(API + '?_=' + t0, { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json().then(function (json) {
+          return { json: json, t0: t0, t1: Date.now() };
+        });
+      });
+  }
+
+  function beat() {
+    if (state.busy) return;
+    state.busy = true;
+    state.beats++;
+
+    var etaP = fetchEta().then(
+      function (v) { return { ok: true, v: v }; },
+      function (e) { return { ok: false, e: e }; }
+    );
+    var timeP = fetchTimeApi().catch(function () { return null; });
+    var kmbP = fetchKmbClock().catch(function () { return null; });
+
+    Promise.all([etaP, timeP, kmbP]).then(function (res) {
+      var eta = res[0];
+      var clocks = [];
+      if (res[1]) clocks.push(res[1]);
+      if (res[2]) clocks.push(res[2]);
+
+      if (eta.ok) {
+        var json = eta.v.json;
+        var c = ctbClock(json, eta.v.t0, eta.v.t1);
+        if (c) clocks.push(c);
+
+        var list = (json.data || []).filter(function (x) {
+          return x && x.eta && x.route === 'B3A' && x.dir === 'O';
+        }).map(function (x) {
+          return {
+            eta: Date.parse(x.eta),
+            seq: x.eta_seq,
+            rmk: x.rmk_tc || ''
+          };
+        }).filter(function (x) {
+          return isFinite(x.eta);
+        }).sort(function (a, b) { return a.eta - b.eta; });
+
+        state.arrivals = list;
+        state.generatedAt = Date.parse(json.generated_timestamp) || 0;
+        state.lastFetch = eta.v.t1;
+        state.ok = true;
+        state.error = '';
+        buildRows();
+      } else {
+        state.ok = false;
+        state.error = (eta.e && eta.e.message) || '網絡錯誤';
+      }
+
+      var combined = combineClocks(clocks);
+      if (combined) applyOffset(combined.offset, combined.label, combined.detail);
+
+      state.busy = false;
+      state.nextBeatAt = Date.now() + HB;
+      render();
+    }).catch(function (e) {
+      state.busy = false;
+      state.ok = false;
+      state.error = String((e && e.message) || e);
+      state.nextBeatAt = Date.now() + HB;
+      render();
+    });
+  }
+
+  function buildRows() {
+    el.rows.innerHTML = '';
+    rowRefs = state.arrivals.map(function (a, i) {
+      var li = document.createElement('li');
+      li.className = 'row';
+      var idx = document.createElement('span');
+      idx.className = 'idx micro';
+      idx.textContent = pad(i + 1);
+      var t = document.createElement('span');
+      t.className = 't tnum';
+      t.textContent = hkTime.format(a.eta);
+      var rem = document.createElement('span');
+      rem.className = 'rem tnum';
+      rem.textContent = '—';
+      li.appendChild(idx); li.appendChild(t); li.appendChild(rem);
+      el.rows.appendChild(li);
+      return { li: li, rem: rem, eta: a.eta, i: i };
+    });
+    el.empty.hidden = state.arrivals.length !== 0 || !state.ok;
+  }
+
+  function remainingText(rem) {
+    if (rem < -30000) return { html: '已過', cls: 'rem pass' };
+    if (rem <= 45000) return { html: '即將', cls: 'rem' };
+    var mins = Math.round(rem / 60000);
+    return { html: mins + '<small>分</small>', cls: 'rem' };
+  }
+
+  function render() {
+    var t = now();
+
+    // clock
+    var c = hkTime.format(t);
+    if (c !== lastClock) { el.clock.textContent = c; lastClock = c; }
+    var d = fmtDate(t);
+    if (d !== lastDate) { el.date.textContent = d; lastDate = d; }
+
+    // status
+    el.status.classList.remove('live', 'stale', 'off');
+    if (state.ok) {
+      if (Date.now() - state.lastFetch < HB * 3) {
+        el.status.classList.add('live');
+        el.statusText.textContent = '即時 LIVE';
+      } else {
+        el.status.classList.add('stale');
+        el.statusText.textContent = '滯後 STALE';
+      }
+    } else if (state.beats > 0) {
+      el.status.classList.add('off');
+      el.statusText.textContent = '離線 OFFLINE';
+    } else {
+      el.statusText.textContent = '連線中';
+    }
+
+    // rows
+    if (rowRefs.length !== state.arrivals.length) buildRows();
+    el.empty.hidden = state.arrivals.length !== 0;
+
+    var nextIdx = -1;
+    for (var i = 0; i < rowRefs.length; i++) {
+      var r = rowRefs[i];
+      var rem = r.eta - t;
+      var txt = remainingText(rem);
+      if (r.rem.innerHTML !== txt.html) r.rem.innerHTML = txt.html;
+      r.rem.className = 'rem tnum' + (txt.cls.indexOf('pass') >= 0 ? ' pass' : '');
+      r.li.classList.toggle('dim', rem < -30000);
+      if (rem > -30000 && nextIdx < 0) nextIdx = i;
+      r.li.classList.toggle('is-next', i === nextIdx);
+    }
+
+    // big next
+    if (nextIdx >= 0) {
+      var a = state.arrivals[nextIdx];
+      var rms = a.eta - t;
+      if (rms <= 45000) {
+        el.bigNum.classList.add('soon');
+        el.bigNum.textContent = rms <= 0 ? '到站' : '即將';
+        el.bigUnit.textContent = '';
+      } else {
+        el.bigNum.classList.remove('soon');
+        var m = Math.round(rms / 60000);
+        el.bigNum.textContent = m > 999 ? '999+' : String(m);
+        el.bigUnit.textContent = '分';
+      }
+      el.nextBadge.textContent = '第 ' + (nextIdx + 1) + ' 班';
+      el.nextTime.textContent = hkHM.format(a.eta);
+
+      var sec = Math.max(0, Math.round(rms / 1000));
+      var detail;
+      if (rms <= 0) detail = '已到站';
+      else if (rms <= 45000) detail = '即將到站 · ' + sec + ' 秒';
+      else detail = Math.floor(sec / 60) + ' 分 ' + pad(sec % 60) + ' 秒後到站';
+      if (a.rmk) detail += ' · ' + a.rmk;
+      el.nextDetail.textContent = detail;
+    } else {
+      el.bigNum.classList.remove('soon');
+      el.bigNum.textContent = '—';
+      el.bigUnit.textContent = '';
+      el.nextBadge.textContent = '—';
+      el.nextTime.textContent = '--:--';
+      el.nextDetail.textContent = state.ok ? '暫無實時班次' : '訊號中斷';
+    }
+
+    // clock sync
+    if (state.synced) {
+      el.syncVal.textContent = fmtOffset(state.offset);
+      var lag = state.offset >= 0 ? '本地慢' : '本地快';
+      el.syncSub.textContent = state.syncSource + ' · ' + lag;
+      el.syncSub.title = state.syncDetail;
+    } else {
+      el.syncVal.textContent = '—';
+      el.syncSub.textContent = '等待同步';
+      el.syncSub.title = '';
+    }
+
+    // last fetch
+    if (state.lastFetch) {
+      el.fetchVal.textContent = hkTime.format(state.lastFetch + state.offset);
+      var age = Math.round((Date.now() - state.lastFetch) / 1000);
+      el.fetchSub.textContent = state.ok ? ('成功 · ' + age + ' 秒前') : ('失敗 · ' + state.error);
+    } else if (state.beats > 0) {
+      el.fetchVal.textContent = '--:--:--';
+      el.fetchSub.textContent = '失敗 · ' + state.error;
+    }
+  }
+
+  // 每秒刷新畫面（倒數、時鐘）
+  setInterval(render, 250);
+
+  el.status.addEventListener('click', function () { beat(); });
+
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && Date.now() - state.lastFetch > 5000) beat();
+  });
+
+  // 首次載入
+  state.nextBeatAt = Date.now() + HB;
+  render();
+  beat();
+  setInterval(function () {
+    if (document.hidden) return;
+    if (Date.now() >= state.nextBeatAt) beat();
+  }, 1000);
+})();
+</script>
+</body>
+</html>
+<!-- Co-Author: AIYoukai <ai-youkai@proton.me> -->
