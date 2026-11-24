@@ -208,6 +208,52 @@
     font-size:11px; font-weight:600; letter-spacing:.08em; opacity:.55;
   }
 
+  /* ---------- return strip ---------- */
+  .ret{
+    margin-top:clamp(12px,1.8vw,20px);
+    border:2px solid var(--ink);
+    display:grid;
+    grid-template-columns:minmax(200px,.85fr) minmax(0,2.2fr);
+    background:var(--paper);
+  }
+  .ret-head{
+    padding:clamp(12px,1.6vw,20px);
+    border-right:2px solid var(--ink);
+    display:flex; flex-direction:column; justify-content:space-between; gap:10px;
+    min-width:0;
+  }
+  .ret-title{
+    margin-top:6px;
+    font-size:clamp(15px,1.5vw,20px); font-weight:800; letter-spacing:-.015em;
+  }
+  .ret-sub{font-size:10px; letter-spacing:.06em; font-weight:600; opacity:.6}
+  .ret-list{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    align-content:stretch;
+  }
+  .ret-item{
+    padding:clamp(12px,1.6vw,20px);
+    border-left:1px solid var(--line);
+    display:flex; flex-direction:column; justify-content:center; gap:5px;
+    min-width:0;
+  }
+  .ret-item:first-child{border-left:0}
+  .ret-item .k{font-size:9.5px; letter-spacing:.16em; font-weight:700; opacity:.5; text-transform:uppercase}
+  .ret-item .tm{
+    font-size:clamp(21px,2.3vw,30px); font-weight:800; letter-spacing:-.03em; line-height:1;
+  }
+  .ret-item .rm{font-size:clamp(10px,1vw,12px); font-weight:700; letter-spacing:.05em; opacity:.6}
+  .ret-item.is-next{background:var(--ink); color:var(--paper)}
+  .ret-item.is-next .tm{color:var(--lemon)}
+  .ret-item.is-next .k, .ret-item.is-next .rm{opacity:.75}
+  .ret-item.dim{opacity:.38}
+  .ret-empty{
+    grid-column:1 / -1;
+    padding:clamp(14px,1.8vw,22px);
+    font-size:clamp(13px,1.3vw,16px); font-weight:700;
+  }
+  .ret-empty span{display:block; margin-top:5px; font-size:10.5px; font-weight:600; opacity:.55; letter-spacing:.05em}
+
   /* ---------- footer ---------- */
   footer{
     margin-top:auto;
@@ -236,6 +282,11 @@
     .meta{max-width:520px}
     .board{grid-template-columns:1fr}
     .next{border-right:0; border-bottom:1px solid var(--inv-line)}
+    .ret{grid-template-columns:1fr}
+    .ret-head{border-right:0; border-bottom:2px solid var(--ink); flex-direction:row; align-items:flex-end}
+    .ret-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .ret-item:nth-child(odd){border-left:0}
+    .ret-item:nth-child(n+3){border-top:1px solid var(--line)}
     footer{grid-template-columns:1fr 1fr}
     .fcell:nth-child(3){border-left:0; padding-left:0}
   }
@@ -321,6 +372,17 @@
         <div class="empty" id="empty" hidden>暫無實時班次<span>可能已收車，或訊號暫時中斷</span></div>
       </div>
     </section>
+
+    <section class="ret" aria-label="回程開出時間">
+      <div class="ret-head">
+        <div>
+          <div class="micro">回程 RETURN · 由深圳灣口岸開出</div>
+          <div class="ret-title">深圳灣口岸 → 富泰 · 山景邨</div>
+        </div>
+        <div class="ret-sub" id="retSub">等待數據</div>
+      </div>
+      <div class="ret-list" id="retList"></div>
+    </section>
   </main>
 
   <footer>
@@ -349,6 +411,8 @@
   'use strict';
 
   var API = 'https://rt.data.gov.hk/v2/transport/citybus/eta/ctb/003261/B3A';
+  // 回程：深圳灣口岸（003208）開往山景邨，經富泰
+  var RET_API = 'https://rt.data.gov.hk/v2/transport/citybus/eta/ctb/003208/B3A';
   var TIME_API = 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Hong_Kong';
   // 第二個香港官方時間參考：九巴 ETA 回應的 generated_timestamp
   var KMB_CLOCK_API = 'https://data.etabus.gov.hk/v1/transport/kmb/eta/AA5DA45828958EAE/67M/1';
@@ -361,6 +425,7 @@
     bigNum: $('bigNum'), bigUnit: $('bigUnit'),
     nextTime: $('nextTime'), nextDetail: $('nextDetail'), nextBadge: $('nextBadge'),
     rows: $('rows'), empty: $('empty'),
+    retSub: $('retSub'), retList: $('retList'),
     syncVal: $('syncVal'), syncSub: $('syncSub'),
     fetchVal: $('fetchVal'), fetchSub: $('fetchSub')
   };
@@ -384,6 +449,10 @@
     syncDetail: '',
     syncAt: 0,
     arrivals: [],
+    retArrivals: [],
+    retOk: false,
+    retError: '',
+    retFetch: 0,
     generatedAt: 0,
     lastFetch: 0,
     ok: false,
@@ -503,9 +572,9 @@
     };
   }
 
-  function fetchEta() {
+  function fetchEta(url) {
     var t0 = Date.now();
-    return fetch(API + '?_=' + t0, { cache: 'no-store' })
+    return fetch(url + '?_=' + t0, { cache: 'no-store' })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json().then(function (json) {
@@ -519,15 +588,20 @@
     state.busy = true;
     state.beats++;
 
-    var etaP = fetchEta().then(
+    var etaP = fetchEta(API).then(
+      function (v) { return { ok: true, v: v }; },
+      function (e) { return { ok: false, e: e }; }
+    );
+    var retP = fetchEta(RET_API).then(
       function (v) { return { ok: true, v: v }; },
       function (e) { return { ok: false, e: e }; }
     );
     var timeP = fetchTimeApi().catch(function () { return null; });
     var kmbP = fetchKmbClock().catch(function () { return null; });
 
-    Promise.all([etaP, timeP, kmbP]).then(function (res) {
+    Promise.all([etaP, timeP, kmbP, retP]).then(function (res) {
       var eta = res[0];
+      var ret = res[3];
       var clocks = [];
       if (res[1]) clocks.push(res[1]);
       if (res[2]) clocks.push(res[2]);
@@ -558,6 +632,33 @@
       } else {
         state.ok = false;
         state.error = (eta.e && eta.e.message) || '網絡錯誤';
+      }
+
+      if (ret.ok) {
+        var rjson = ret.v.json;
+        var rc = ctbClock(rjson, ret.v.t0, ret.v.t1);
+        if (rc) clocks.push(rc);
+
+        state.retArrivals = (rjson.data || []).filter(function (x) {
+          return x && x.eta && x.route === 'B3A' && x.dir === 'I';
+        }).map(function (x) {
+          return {
+            eta: Date.parse(x.eta),
+            seq: x.eta_seq,
+            rmk: x.rmk_tc || ''
+          };
+        }).filter(function (x) {
+          return isFinite(x.eta);
+        }).sort(function (a, b) { return a.eta - b.eta; }).slice(0, 4);
+
+        state.retFetch = ret.v.t1;
+        state.retOk = true;
+        state.retError = '';
+        buildRet();
+      } else {
+        state.retOk = false;
+        state.retError = (ret.e && ret.e.message) || '網絡錯誤';
+        buildRet();
       }
 
       var combined = combineClocks(clocks);
@@ -594,6 +695,62 @@
       return { li: li, rem: rem, eta: a.eta, i: i };
     });
     el.empty.hidden = state.arrivals.length !== 0 || !state.ok;
+  }
+
+  var retRefs = [];
+
+  function buildRet() {
+    el.retList.innerHTML = '';
+    retRefs = state.retArrivals.map(function (a, i) {
+      var d = document.createElement('div');
+      d.className = 'ret-item';
+      var k = document.createElement('span');
+      k.className = 'k';
+      k.textContent = i === 0 ? '下一班 · NEXT' : '第 ' + (i + 1) + ' 班';
+      var tm = document.createElement('span');
+      tm.className = 'tm tnum';
+      tm.textContent = hkHM.format(a.eta);
+      var rm = document.createElement('span');
+      rm.className = 'rm tnum';
+      d.appendChild(k); d.appendChild(tm); d.appendChild(rm);
+      el.retList.appendChild(d);
+      return { d: d, rm: rm, eta: a.eta };
+    });
+
+    if (!retRefs.length) {
+      var em = document.createElement('div');
+      em.className = 'ret-empty';
+      em.textContent = state.retOk ? '暫無回程班次' : '回程訊號中斷';
+      var sub = document.createElement('span');
+      sub.textContent = state.retOk ? '可能已收車，或城巴暫未發佈' : '點右上角可即時重試';
+      em.appendChild(sub);
+      el.retList.appendChild(em);
+    }
+  }
+
+  function renderRet(t) {
+    var nextIdx = -1;
+    for (var i = 0; i < retRefs.length; i++) {
+      var r = retRefs[i];
+      var rem = r.eta - t;
+      var txt;
+      if (rem < -30000) txt = '已開出';
+      else if (rem <= 45000) txt = '即將開出';
+      else txt = Math.round(rem / 60000) + ' 分後開出';
+      if (r.rm.textContent !== txt) r.rm.textContent = txt;
+      r.d.classList.toggle('dim', rem < -30000);
+      if (rem > -30000 && nextIdx < 0) nextIdx = i;
+      r.d.classList.toggle('is-next', i === nextIdx);
+    }
+
+    if (state.retOk) {
+      var age = Math.round((Date.now() - state.retFetch) / 1000);
+      el.retSub.textContent = (age > HB / 1000 * 3 ? '滯後 ' : '實時 ') + age + ' 秒前更新';
+    } else if (state.beats > 0) {
+      el.retSub.textContent = '離線 · ' + state.retError;
+    } else {
+      el.retSub.textContent = '等待數據';
+    }
   }
 
   function remainingText(rem) {
@@ -677,6 +834,10 @@
       el.nextTime.textContent = '--:--';
       el.nextDetail.textContent = state.ok ? '暫無實時班次' : '訊號中斷';
     }
+
+    // return strip
+    if (retRefs.length !== state.retArrivals.length) buildRet();
+    renderRet(t);
 
     // clock sync
     if (state.synced) {
